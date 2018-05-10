@@ -41,14 +41,18 @@ fun <T> ArgParser.DelegateProvider<T>.default(newDefault: () -> T): ArgParser.De
  *
  * @param newDefault the default value for the resulting [ArgParser.Delegate]
  */
-fun <T> ArgParser.Delegate<T>.default(defaultValue: T): ArgParser.Delegate<T> = default { defaultValue }
+fun <T> ArgParser.Delegate<T>.default(defaultValue: T, show: Boolean = false): ArgParser.Delegate<T> =
+        default({ defaultValue }, show)
+
+fun <T> ArgParser.Delegate<T>.default(defaultValue: () -> T, show: Boolean = false): ArgParser.Delegate<T> =
+        default(defaultValue, if (show) ({ x: T -> "(default: $x)" }) as ((T) -> String) else null)
 
 /**
  * Returns a new `Delegate` with the specified default value as a lambda.
  *
  * @param newDefault the default value for the resulting [ArgParser.Delegate]
  */
-fun <T> ArgParser.Delegate<T>.default(defaultValue: () -> T): ArgParser.Delegate<T> {
+fun <T> ArgParser.Delegate<T>.default(defaultValue: () -> T, showDefault: ((T) -> String)?): ArgParser.Delegate<T> {
     if (hasValidators) {
         throw IllegalStateException("Cannot add default after adding validators")
     }
@@ -59,7 +63,8 @@ fun <T> ArgParser.Delegate<T>.default(defaultValue: () -> T): ArgParser.Delegate
         override val hasValidators: Boolean
             get() = inner.hasValidators
 
-        override fun toHelpFormatterValue(): HelpFormatter.Value = inner.toHelpFormatterValue().copy(isRequired = false)
+        override fun toHelpFormatterValue(): HelpFormatter.Value =
+                inner.toHelpFormatterValue().copy(isRequired = false, help = this.help)
 
         override fun validate() {
             inner.validate()
@@ -81,7 +86,13 @@ fun <T> ArgParser.Delegate<T>.default(defaultValue: () -> T): ArgParser.Delegate
             get() = inner.errorName
 
         override val help: String
-            get() = inner.help
+            get() {
+                return if (showDefault != null) {
+                    "${inner.help} ${showDefault(defaultValue())}"
+                } else {
+                    inner.help
+                }
+            }
 
         override fun addValidator(validator: ArgParser.Delegate<T>.() -> Unit): ArgParser.Delegate<T> =
                 apply { inner.addValidator { validator(this@apply) } }
